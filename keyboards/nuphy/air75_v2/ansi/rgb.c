@@ -836,6 +836,51 @@ void rgb_matrix_step_game_mode(uint8_t step) {
     rgb_matrix_mode_noeeprom(user_config.game_rgb_mod);
 }
 
+// Trans flag: rows top to bottom (Esc row ... space row)
+static const uint8_t flag_colours[6][3] = {
+    {0x30, 0xB4, 0xFF}, // blue
+    {0xFF, 0x3C, 0x78}, // pink
+    {0xFF, 0xE0, 0xE0}, // white
+    {0xFF, 0xE0, 0xE0}, // white
+    {0xFF, 0x3C, 0x78}, // pink
+    {0x30, 0xB4, 0xFF}, // blue
+};
+
+bool flag_enable = true;
+
+// A few keys sit in a different matrix row than their physical row
+// (taken from your VIA definition: Del, PgUp/PgDn area, right-hand keys)
+static uint8_t flag_row_of(uint8_t row, uint8_t col) {
+    if (row == 2 && col == 14) return 0;
+    if (row == 1 && col == 15) return 3;
+    if (row == 2 && col == 15) return 4;
+    if (row == 3 && col == 14) return 5;
+    return row;
+}
+
+void flag_keys_show(void) {
+    if (!flag_enable || game_mode_enable) { return; }
+    rgb_required = 1;
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            uint8_t led = g_led_config.matrix_co[row][col];
+            if (led == NO_LED) { continue; }
+            const uint8_t *c = flag_colours[flag_row_of(row, col)];
+            rgb_matrix_set_color(led, c[0], c[1], c[2]);
+        }
+    }
+}
+
+// Optional: paint the side light bars to match
+static void flag_side_show(void) {
+    if (!flag_enable || user_config.ee_side_light == 0) { return; }
+    for (uint8_t pos = 0; pos < SIDE_LINE; pos++) {
+        const uint8_t *c = flag_colours[pos];
+        side_pos_ind(LEFT_SIDE,  pos, c[0], c[1], c[2]);
+        side_pos_ind(RIGHT_SIDE, pos, c[0], c[1], c[2]);
+    }
+}
+
 /**
  * @brief  side_led_show.
  */
@@ -870,6 +915,7 @@ void normal_led_process(void) {
     }
 
 
+    flag_side_show();
     side_one_show();
     sys_led_show(); // persistent indicators first: the battery gauge may cover them briefly
     bat_led_show();
@@ -879,6 +925,7 @@ void normal_led_process(void) {
 }
 
 void realtime_led_process(void) {
+    flag_keys_show();
     rf_led_show();
     rgb_led_indicator();
     caps_word_show();
